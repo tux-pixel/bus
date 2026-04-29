@@ -55,15 +55,28 @@
         <main class="flex-1 p-4 max-w-6xl mx-auto w-full space-y-6">
             <section class="bg-blue-50/50 p-5 rounded-xl border border-blue-100 shadow-sm">
                 <h2 class="text-[10px] font-black mb-4 uppercase tracking-[0.2em] text-blue-600"><i class="fas fa-plus-circle mr-2"></i>Fahrt reservieren</h2>
-                <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
-                    <input type="date" id="book-date" class="p-2.5 border border-blue-200 rounded-lg outline-none">
-                    <div class="flex items-center gap-1 md:col-span-1">
-                        <input type="time" id="book-time-start" class="p-2.5 border border-blue-200 rounded-lg w-full outline-none">
-                        <span class="text-blue-300 font-bold px-1">-</span>
-                        <input type="time" id="book-time-end" class="p-2.5 border border-blue-200 rounded-lg w-full outline-none">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                    
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[9px] font-bold text-blue-400 uppercase ml-1">Datum</label>
+                        <input type="date" id="book-date" class="p-2.5 border border-blue-200 rounded-lg outline-none w-full bg-white">
                     </div>
-                    <input type="text" id="book-reason" placeholder="Zielort / Zweck" class="md:col-span-2 p-2.5 border border-blue-200 rounded-lg outline-none">
-                    <button onclick="saveBooking()" class="bg-blue-600 text-white py-2.5 px-4 rounded-lg font-bold hover:bg-blue-700 transition text-[11px] uppercase tracking-widest shadow-md">Speichern</button>
+
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[9px] font-bold text-blue-400 uppercase ml-1">Uhrzeit (von - bis)</label>
+                        <div class="flex items-center gap-1">
+                            <input type="time" id="book-time-start" class="p-2.5 border border-blue-200 rounded-lg w-full outline-none bg-white">
+                            <span class="text-blue-300 font-bold px-1">-</span>
+                            <input type="time" id="book-time-end" class="p-2.5 border border-blue-200 rounded-lg w-full outline-none bg-white">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-1 md:col-span-2">
+                        <label class="text-[9px] font-bold text-blue-400 uppercase ml-1">Zielort / Zweck</label>
+                        <input type="text" id="book-reason" placeholder="z.B. Kundentermin / Stadtmitte" class="p-2.5 border border-blue-200 rounded-lg outline-none w-full bg-white">
+                    </div>
+
+                    <button onclick="saveBooking()" class="bg-blue-600 text-white py-2.5 px-4 rounded-lg font-bold hover:bg-blue-700 transition text-[11px] uppercase tracking-widest shadow-md h-[42px]">Speichern</button>
                 </div>
             </section>
 
@@ -164,7 +177,6 @@
             }
         }
 
-        // --- USER MANAGEMENT (Cloud-basiert) ---
         function addUser() {
             const id = document.getElementById('edit-user-id').value;
             const n = document.getElementById('new-username').value.trim();
@@ -223,7 +235,6 @@
             if(confirm("User löschen?")) db.ref('users/' + id).remove();
         }
 
-        // --- BUCHUNGEN MIT ÜBERSCHNEIDUNGSPRÜFUNG ---
         function saveBooking() {
             const date = document.getElementById('book-date').value;
             const start = document.getElementById('book-time-start').value;
@@ -233,11 +244,8 @@
             if(!date || !start || !end || !reason) return alert("Bitte alle Felder ausfüllen!");
             if(start >= end) return alert("Endzeit muss nach Startzeit liegen!");
 
-            // Überschneidungsprüfung
             const conflict = bookings.find(b => {
-                if(b.date !== date) return false; // Anderer Tag -> kein Konflikt
-                
-                // Prüfen ob Zeiten überlappen: (StartA < EndeB) AND (EndeA > StartB)
+                if(b.date !== date) return false; 
                 return (start < b.end && end > b.start);
             });
 
