@@ -137,11 +137,6 @@
                 bookings = Object.values(data.bookings || {});
                 archive = Object.values(data.archive || {});
 
-                if (users.length === 0) {
-                    const defaultAdmin = { id: Date.now(), name: 'admin', pass: 'admin123', role: 'admin' };
-                    db.ref('users/' + defaultAdmin.id).set(defaultAdmin);
-                }
-
                 if(currentUser) initDashboard();
             });
         }
