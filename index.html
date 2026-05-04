@@ -55,7 +55,7 @@
         <main class="flex-1 p-4 max-w-6xl mx-auto w-full space-y-6">
             <section class="bg-blue-50/50 p-5 rounded-xl border border-blue-100 shadow-sm">
                 <h2 class="text-[10px] font-black mb-4 uppercase tracking-[0.2em] text-blue-600"><i class="fas fa-plus-circle mr-2"></i>Fahrt reservieren</h2>
-                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                <div class="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
                     
                     <div class="flex flex-col gap-1">
                         <label class="text-[9px] font-bold text-blue-400 uppercase ml-1">Datum</label>
@@ -71,9 +71,15 @@
                         </div>
                     </div>
 
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[9px] font-bold text-blue-400 uppercase ml-1">Fahrer / Person</label>
+                        <select id="book-for-user" class="p-2.5 border border-blue-200 rounded-lg outline-none w-full bg-white font-bold text-blue-800">
+                            </select>
+                    </div>
+
                     <div class="flex flex-col gap-1 md:col-span-2">
                         <label class="text-[9px] font-bold text-blue-400 uppercase ml-1">Zielort / Zweck</label>
-                        <input type="text" id="book-reason" placeholder="z.B. BE Prüfung / Anhänger / Ort" class="p-2.5 border border-blue-200 rounded-lg outline-none w-full bg-white">
+                        <input type="text" id="book-reason" placeholder="z.B. Kundentermin" class="p-2.5 border border-blue-200 rounded-lg outline-none w-full bg-white">
                     </div>
 
                     <button onclick="saveBooking()" class="bg-blue-600 text-white py-2.5 px-4 rounded-lg font-bold hover:bg-blue-700 transition text-[11px] uppercase tracking-widest shadow-md h-[42px]">Speichern</button>
@@ -113,6 +119,7 @@
     </div>
 
     <script>
+        // Firebase Konfiguration
         const firebaseConfig = {
             apiKey: "AIzaSyAQOrhZbOtPTRf9zA1KAZ4gRNwXlVlpBp8",
             authDomain: "bus-planer.firebaseapp.com",
@@ -129,6 +136,7 @@
         let bookings = [];
         let archive = [];
         let currentUser = null;
+        const protectedNames = ['admin', 'Administrator', 'Helmut'];
 
         function loadData() {
             db.ref('/').on('value', (snapshot) => {
@@ -166,9 +174,18 @@
         function initDashboard() {
             renderBookings();
             renderArchive();
+            
+            // Fahrer-Dropdown im Buchungsformular befüllen
+            const bookForSelect = document.getElementById('book-for-user');
+            bookForSelect.innerHTML = users.map(u => 
+                `<option value="${u.name}" ${u.name === currentUser.name ? 'selected' : ''}>${u.name}</option>`
+            ).join('');
+
             if (currentUser.role === 'admin') {
                 document.getElementById('admin-section').classList.remove('hidden');
                 renderUsers();
+            } else {
+                document.getElementById('admin-section').classList.add('hidden');
             }
         }
 
@@ -179,6 +196,14 @@
             const r = document.getElementById('new-role').value;
             
             if (!n || !p) return alert("Name und Passwort erforderlich!");
+
+            // Prüfen, ob Helmut/Admin geschützt werden soll beim Umbenennen
+            if(id) {
+                const oldUser = users.find(u => u.id == id);
+                if(protectedNames.includes(oldUser.name) && oldUser.name !== n) {
+                    return alert("System-Benutzer können nicht umbenannt werden!");
+                }
+            }
             
             const userId = id ? id : Date.now();
             const userData = { id: parseInt(userId), name: n, pass: p, role: r };
@@ -191,6 +216,9 @@
         function editUser(id) {
             const user = users.find(u => u.id == id);
             if(user) {
+                if(protectedNames.includes(user.name)) {
+                    return alert("Dieser User (Helmut/Admin) kann nicht bearbeitet werden!");
+                }
                 document.getElementById('edit-user-id').value = user.id;
                 document.getElementById('new-username').value = user.name;
                 document.getElementById('new-password').value = user.pass;
@@ -220,14 +248,18 @@
                         <p class="text-[8px] text-slate-400">PW: ${u.pass}</p>
                     </div>
                     <div class="flex gap-3">
-                        <button onclick="editUser(${u.id})" class="text-slate-400 hover:text-blue-600"><i class="fas fa-edit"></i></button>
-                        <button onclick="deleteUser(${u.id})" class="${u.name==='admin'?'hidden':''} text-slate-200 hover:text-red-500"><i class="fas fa-trash-alt"></i></button>
+                        ${protectedNames.includes(u.name) ? '<i class="fas fa-lock text-slate-300"></i>' : `
+                            <button onclick="editUser(${u.id})" class="text-slate-400 hover:text-blue-600"><i class="fas fa-edit"></i></button>
+                            <button onclick="deleteUser(${u.id})" class="text-slate-200 hover:text-red-500"><i class="fas fa-trash-alt"></i></button>
+                        `}
                     </div>
                 </div>`).join('');
         }
 
         function deleteUser(id) {
-            if(confirm("User löschen?")) db.ref('users/' + id).remove();
+            const user = users.find(u => u.id == id);
+            if(protectedNames.includes(user.name)) return alert("System-User können nicht gelöscht werden!");
+            if(confirm(`User "${user.name}" wirklich löschen?`)) db.ref('users/' + id).remove();
         }
 
         function saveBooking() {
@@ -235,6 +267,7 @@
             const start = document.getElementById('book-time-start').value;
             const end = document.getElementById('book-time-end').value;
             const reason = document.getElementById('book-reason').value;
+            const targetPerson = document.getElementById('book-for-user').value;
             
             if(!date || !start || !end || !reason) return alert("Bitte alle Felder ausfüllen!");
             if(start >= end) return alert("Endzeit muss nach Startzeit liegen!");
@@ -250,7 +283,14 @@
             }
 
             const newId = Date.now();
-            db.ref('bookings/' + newId).set({ id: newId, date, start, end, reason, person: currentUser.name });
+            db.ref('bookings/' + newId).set({ 
+                id: newId, 
+                date, 
+                start, 
+                end, 
+                reason, 
+                person: targetPerson 
+            });
             
             const bus = document.getElementById('bus-gimmick');
             bus.classList.remove('animate-bus'); void bus.offsetWidth; bus.classList.add('animate-bus');
@@ -263,7 +303,7 @@
                 <tr class="hover:bg-emerald-50 border-l-4 ${b.person === currentUser.name ? 'border-l-emerald-500' : 'border-l-transparent'}">
                     <td class="p-3 font-bold text-emerald-900">${new Date(b.date).toLocaleDateString('de-DE')}</td>
                     <td class="p-3"><div class="time-badge-green">${b.start} - ${b.end}</div></td>
-                    <td class="p-3 text-[10px] font-bold text-slate-400 uppercase italic">${b.person}</td>
+                    <td class="p-3 text-[10px] font-bold text-blue-600 uppercase italic">${b.person}</td>
                     <td class="p-3 font-medium text-slate-700">${b.reason}</td>
                     <td class="p-3 text-right">
                         ${(currentUser.role === 'admin' || b.person === currentUser.name) ? `<button onclick="moveToArchive(${b.id})" class="bg-emerald-600 text-white px-2 py-1 rounded text-[9px] font-black uppercase">Archiv</button>` : ''}
@@ -286,7 +326,7 @@
                     <td class="p-2 font-black text-orange-600 text-[9px] uppercase">${new Date(b.date).toLocaleDateString('de-DE', {month: 'short'})}</td>
                     <td class="p-2 text-slate-400 font-bold">${new Date(b.date).toLocaleDateString('de-DE')}</td>
                     <td class="p-2"><div class="time-badge-orange">${b.start}-${b.end}</div></td>
-                    <td class="p-2 text-slate-500 italic">${b.reason}</td>
+                    <td class="p-2 text-slate-500 italic">(${b.person}) ${b.reason}</td>
                     <td class="p-2 text-right">
                         ${currentUser.role === 'admin' ? `<button onclick="finalDelete(${b.id})" class="text-orange-300 hover:text-red-500"><i class="fas fa-trash-alt"></i></button>` : ''}
                     </td>
