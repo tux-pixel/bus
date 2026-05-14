@@ -183,7 +183,8 @@
             const id = document.getElementById('edit-booking-id').value;
             const date = document.getElementById('book-date').value, start = document.getElementById('book-time-start').value, end = document.getElementById('book-time-end').value, reason = document.getElementById('book-reason').value, targetPerson = document.getElementById('book-for-user').value;
             
-            if(!date || !start || !end || !reason) return alert("Bitte alle Felder ausfüllen!");
+            // SICHERHEITS-CHECK: Verhindert leere/ungültige Datensätze
+            if(!date || !start || !end || !reason || !targetPerson) return alert("Bitte alle Felder ausfüllen!");
             if(start >= end) return alert("Endzeit muss nach Startzeit liegen!");
             
             const conflict = bookings.find(b => b.id != id && b.date === date && (start < b.end && end > b.start));
@@ -228,8 +229,11 @@
         }
 
         function renderBookings() {
-            bookings.sort((a, b) => new Date(a.date) - new Date(b.date));
-            document.getElementById('booking-list').innerHTML = bookings.map(b => `
+            // FILTER: Nur Buchungen mit gültiger ID und Datum anzeigen
+            const validBookings = bookings.filter(b => b.id && b.date);
+            validBookings.sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            document.getElementById('booking-list').innerHTML = validBookings.map(b => `
                 <tr class="hover:bg-emerald-50 border-l-4 ${b.person === currentUser.name ? 'border-l-emerald-500' : 'border-l-transparent'}">
                     <td class="p-3 font-bold text-emerald-900">${new Date(b.date).toLocaleDateString('de-DE')}</td>
                     <td class="p-3"><div class="time-badge-green">${b.start} - ${b.end}</div></td>
@@ -247,17 +251,28 @@
                 </tr>`).join('');
         }
 
-        function deleteBooking(id) { if(confirm("Termin wirklich löschen?")) db.ref('bookings/' + id).remove(); }
-        function moveToArchive(id) { const b = bookings.find(x => x.id === id); db.ref('archive/' + id).set(b).then(() => db.ref('bookings/' + id).remove()); }
+        function deleteBooking(id) { 
+            if(!id) return alert("Dieser Eintrag ist beschädigt (keine ID) und muss in der Firebase Console gelöscht werden.");
+            if(confirm("Termin wirklich löschen?")) db.ref('bookings/' + id).remove(); 
+        }
+
+        function moveToArchive(id) { 
+            const b = bookings.find(x => x.id === id); 
+            if(!b) return;
+            db.ref('archive/' + id).set(b).then(() => db.ref('bookings/' + id).remove()); 
+        }
+
         function restoreFromArchive(id) {
             const b = archive.find(x => x.id === id);
+            if(!b) return;
             if(bookings.find(x => x.date === b.date && (b.start < x.end && b.end > x.start))) return alert("Überschneidung im Kalender!");
             db.ref('bookings/' + id).set(b).then(() => db.ref('archive/' + id).remove());
         }
 
         function renderArchive() {
-            archive.sort((a, b) => new Date(b.date) - new Date(a.date));
-            document.getElementById('archive-list').innerHTML = archive.map(b => `
+            const validArchive = archive.filter(b => b.id && b.date);
+            validArchive.sort((a, b) => new Date(b.date) - new Date(a.date));
+            document.getElementById('archive-list').innerHTML = validArchive.map(b => `
                 <tr class="border-l-4 border-l-orange-300 bg-white/50">
                     <td class="p-2 font-black text-orange-600 text-[9px] uppercase">${new Date(b.date).toLocaleDateString('de-DE', {month: 'short'})}</td>
                     <td class="p-2 text-slate-400 font-bold">${new Date(b.date).toLocaleDateString('de-DE')}</td>
@@ -276,7 +291,7 @@
 
         function finalDelete(id) { if(confirm("Endgültig löschen?")) db.ref('archive/' + id).remove(); }
 
-        // --- User Admin Logik (unverändert) ---
+        // --- User Admin Logik ---
         function addUser() {
             const id = document.getElementById('edit-user-id').value, n = document.getElementById('new-username').value.trim(), p = document.getElementById('new-password').value.trim(), r = document.getElementById('new-role').value;
             if (!n || !p) return alert("Felder füllen!");
